@@ -12,38 +12,22 @@ def init_connection():
     return client
 
 def clean_and_map(df):
-    # 1. Pastikan kolom kunci ada dan bersih dari spasi gaib
-    # Di gambar kamu kolomnya adalah 'Kode Judul' dan 'Angkatan'
+    # 1. Pastikan kolom kunci ada dan bersih
     df['Kode Judul'] = df['Kode Judul'].astype(str).str.strip()
     df['Angkatan'] = df['Angkatan'].astype(str).str.strip()
 
-    # Convert date columns to datetime first, then to string format
-    # Use .apply with pd.notna to handle NaT values correctly
-    df['Tgl Mulai'] = pd.to_datetime(df['Tgl Mulai'], errors='coerce').apply(
-        lambda x: x.strftime('%Y-%m-%d') if pd.notna(x) else None
-    )
-    df['Tgl Selesai'] = pd.to_datetime(df['Tgl Selesai'], errors='coerce').apply(
-        lambda x: x.strftime('%Y-%m-%d') if pd.notna(x) else None
-    )
+    # 2. Penanganan Tanggal (Supaya tidak error JSON Timestamp)
+    df['Tgl Mulai'] = pd.to_datetime(df['Tgl Mulai'], errors='coerce').dt.strftime('%Y-%m-%d')
+    df['Tgl Selesai'] = pd.to_datetime(df['Tgl Selesai'], errors='coerce').dt.strftime('%Y-%m-%d')
 
-    # 2. Buat Kode Unik (Gunakan variabel yang sudah dibersihkan)
+    # 3. Buat Kode Unik
     df['Kode Unik'] = df['Kode Judul'] + "." + df['Angkatan']
 
-    # 3. Ambil kolom yang dibutuhkan (Pastikan 'Kode Unik' ada di urutan pertama)
-    # Urutan ini harus sama persis dengan urutan kolom di Google Sheets 'detail L1'
-    df_final = df[[
-        'Kode Judul',
-        'Judul Pembelajaran',
-        'Bidang',
-        'Tgl Mulai',
-        'Tgl Selesai',
-        'Angkatan',
-        'Kode Unik',
-        'UPDL Penyelenggara',
-        'Jenis Diklat',
-        'Strategi Pelaksana',
-        'P.Isi',
-        'P.Hadir',
+    # 4. Definisikan urutan kolom (INI ADALAH cols_order YANG TADI ERROR)
+    cols_order = [
+        'Kode Judul', 'Judul Pembelajaran', 'Bidang', 'Tgl Mulai', 
+        'Tgl Selesai', 'Angkatan', 'Kode Unik', 'UPDL Penyelenggara',
+        'Jenis Diklat', 'Strategi Pelaksana', 'P.Isi', 'P.Hadir',
         'Ins-Eng-1 of 2', 'Ins-Eng-2 of 2', 'Ins-Rel-1 of 2', 'Ins-Rel-2 of 2',
         'Ins-Sat-1 of 4', 'Ins-Sat-2 of 4', 'Ins-Sat-3 of 4', 'Ins-Sat-4 of 4',
         'Ins-Rat', 'Ins-Val',
@@ -53,9 +37,14 @@ def clean_and_map(df):
         'Sarpras-Sas-4 of 5', 'Sarpras-Sas-5 of 5', 'Sarpras-Rat',
         'Dig-Sas-1 of 5', 'Dig-Sas-2 of 5', 'Dig-Sas-3 of 5', 'Dig-Sas-4 of 5',
         'Dig-Sas-5 of 5', 'Dig Rat'
-    ]]
+    ]
+
+    # 5. Reindex dan bersihkan NaN (Agar aman bagi API Google Sheets)
+    # Gunakan cols_order yang sudah didefinisikan di atas
     df_final = df.reindex(columns=cols_order).fillna("")
-    return df_final
+    
+    # Pastikan semua data dikirim sebagai string
+    return df_final.astype(str)
 
 
 st.title("🚀 UPDL Jakarta Data Integration")
