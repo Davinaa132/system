@@ -63,7 +63,7 @@ if uploaded_file:
         if st.button("Kirim ke Google Sheets"):
             with st.spinner('Sedang mengirim data...'):
                 client = init_connection()
-                sheet = client.open("Monitoring Evaluasi Pembelajaran").worksheet("Detail L1")
+                sheet = client.open("Copy of Monitoring Evaluasi Pembelajaran").worksheet("Detail L1")
                 
                 data_to_push = df_processed.values.tolist()
                 sheet.append_rows(data_to_push)
