@@ -54,6 +54,7 @@ def clean_and_map(df):
         'Dig-Sas-1 of 5', 'Dig-Sas-2 of 5', 'Dig-Sas-3 of 5', 'Dig-Sas-4 of 5',
         'Dig-Sas-5 of 5', 'Dig Rat'
     ]]
+    df_final = df.reindex(columns=cols_order).fillna("")
     return df_final
 
 
