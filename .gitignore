@@ -1,0 +1,5 @@
+# Mengabaikan file rahasia lokal
+.streamlit/secrets.toml
+__pycache__/
+*.xlsx
+*.csv
