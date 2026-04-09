@@ -12,20 +12,26 @@ def init_connection():
     return client
 
 def clean_and_map(df):
+    # 1. Pastikan kolom kunci ada dan bersih dari spasi gaib
+    # Di gambar kamu kolomnya adalah 'Kode Judul' dan 'Angkatan'
+    df['Kode Judul'] = df['Kode Judul'].astype(str).str.strip()
+    df['Angkatan'] = df['Angkatan'].astype(str).str.strip()
 
-    mapping = {
-        'Kode Judul': 'Kode Judul',
-        'Angkatan': 'Angkatan',
-        'Judul Pembelajaran': 'Judul Pembelajaran'
-    }
-    df = df.rename(columns=mapping)
+    # Convert date columns to datetime first, then to string format
+    # Use .apply with pd.notna to handle NaT values correctly
+    df['Tgl Mulai'] = pd.to_datetime(df['Tgl Mulai'], errors='coerce').apply(
+        lambda x: x.strftime('%Y-%m-%d') if pd.notna(x) else None
+    )
+    df['Tgl Selesai'] = pd.to_datetime(df['Tgl Selesai'], errors='coerce').apply(
+        lambda x: x.strftime('%Y-%m-%d') if pd.notna(x) else None
+    )
 
-    df['Kode Judul'] = df.get('Kode Judul', pd.Series([""])).astype(str).str.strip()
-    df['Angkatan'] = df.get('Angkatan', pd.Series([""])).astype(str).str.strip()
-
+    # 2. Buat Kode Unik (Gunakan variabel yang sudah dibersihkan)
     df['Kode Unik'] = df['Kode Judul'] + "." + df['Angkatan']
 
-    cols_order = [
+    # 3. Ambil kolom yang dibutuhkan (Pastikan 'Kode Unik' ada di urutan pertama)
+    # Urutan ini harus sama persis dengan urutan kolom di Google Sheets 'detail L1'
+    df_final = df[[
         'Kode Judul',
         'Judul Pembelajaran',
         'Bidang',
@@ -47,10 +53,9 @@ def clean_and_map(df):
         'Sarpras-Sas-4 of 5', 'Sarpras-Sas-5 of 5', 'Sarpras-Rat',
         'Dig-Sas-1 of 5', 'Dig-Sas-2 of 5', 'Dig-Sas-3 of 5', 'Dig-Sas-4 of 5',
         'Dig-Sas-5 of 5', 'Dig Rat'
-    ]
-
-    df_final = df.reindex(columns=cols_order, fill_value="")
+    ]]
     return df_final
+
 
 st.title("🚀 UPDL Jakarta Data Integration")
 st.markdown("Upload file Excel dari PLN Pusat untuk memperbarui Database Google Sheets.")
