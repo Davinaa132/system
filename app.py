@@ -4,7 +4,7 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import math
 
-st.set_page_config(page_title="Data System", layout="wide")
+st.set_page_config(page_title="UPDL Jakarta - Advanced System", layout="wide")
 
 def init_connection():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -12,85 +12,64 @@ def init_connection():
     client = gspread.authorize(creds)
     return client
 
-def clean_and_map(df):
-    # 1. Standarisasi Kolom Identitas
-    df['Kode Judul'] = df['Kode Judul'].astype(str).str.strip()
-    df['Angkatan'] = df['Angkatan'].astype(str).str.strip()
+st.title("🚀 UPDL Jakarta Multi-Function System")
 
-    # 2. Penanganan Tanggal
-    df['Tgl Mulai'] = pd.to_datetime(df['Tgl Mulai'], errors='coerce').dt.strftime('%Y-%m-%d')
-    df['Tgl Selesai'] = pd.to_datetime(df['Tgl Selesai'], errors='coerce').dt.strftime('%Y-%m-%d')
+# --- 1. PILIH TUJUAN SHEET ---
+target_sheet = st.sidebar.radio("Pilih Tujuan Sheet:", ["Detail L1", "Detail L2"])
 
-    # 3. Buat Kode Unik
-    df['Kode Unik'] = df['Kode Judul'] + "." + df['Angkatan']
-
-    # 4. Urutan kolom sesuai Google Sheet 'Detail L1'
-    cols_order = [
-        'Kode Judul', 'Judul Pembelajaran', 'Bidang', 'Tgl Mulai', 
-        'Tgl Selesai', 'Angkatan', 'Kode Unik', 'UPDL Penyelenggara',
-        'Jenis Diklat', 'Strategi Pelaksana', 'P.Isi', 'P.Hadir',
-        'Ins-Eng-1 of 2', 'Ins-Eng-2 of 2', 'Ins-Rel-1 of 2', 'Ins-Rel-2 of 2',
-        'Ins-Sat-1 of 4', 'Ins-Sat-2 of 4', 'Ins-Sat-3 of 4', 'Ins-Sat-4 of 4',
-        'Ins-Rat', 'Ins-Val',
-        'Mat-Eng-1 of 2', 'Mat-Eng-2 of 2', 'Mat-Rel-1 of 2', 'Mat-Rel-2 of 2',
-        'Mat-Sat-1 of 2', 'Mat-Sat-2 of 2', 'Mat-Rat', 'Mat-Val',
-        'Sarpras-Sas-1 of 5', 'Sarpras-Sas-2 of 5', 'Sarpras-Sas-3 of 5',
-        'Sarpras-Sas-4 of 5', 'Sarpras-Sas-5 of 5', 'Sarpras-Rat',
-        'Dig-Sas-1 of 5', 'Dig-Sas-2 of 5', 'Dig-Sas-3 of 5', 'Dig-Sas-4 of 5',
-        'Dig-Sas-5 of 5', 'Dig Rat'
-    ]
-
-    # Reindex kolom agar urutan konsisten
-    df_final = df.reindex(columns=cols_order)
-
-    # 5. Konversi kolom skor menjadi angka (Numeric)
-    # Dimulai dari kolom 'P.Isi' sampai terakhir
-    idx_pisi = cols_order.index('P.Isi')
-    cols_numeric = cols_order[idx_pisi:]
-    for col in cols_numeric:
-        df_final[col] = pd.to_numeric(df_final[col], errors='coerce')
-
-    return df_final
-
-st.title("🚀 UPDL Jakarta Data Integration")
-st.markdown("Upload file Excel dari PLN Pusat untuk memperbarui Database Google Sheets.")
-
-uploaded_file = st.file_uploader("Pilih file Excel (xlsx)", type=["xlsx"])
+uploaded_file = st.sidebar.file_uploader("Upload Excel PLN", type=["xlsx"])
 
 if uploaded_file:
     try:
         df_raw = pd.read_excel(uploaded_file)
-        df_processed = clean_and_map(df_raw)
         
-        st.subheader("Preview Data yang akan di-upload:")
-        st.dataframe(df_processed)
+        # --- 2. FITUR PILIH KOLOM (Skenario 1) ---
+        st.subheader("⚙️ Pengaturan Kolom & Filter")
+        all_columns = df_raw.columns.tolist()
+        selected_cols = st.multiselect("Pilih kolom yang ingin dimasukkan ke Google Sheets:", 
+                                       all_columns, 
+                                       default=all_columns[:5] if len(all_columns) > 5 else all_columns)
 
-        if st.button("Kirim ke Google Sheets"):
-            with st.spinner('Sedang mengirim data...'):
-                client = init_connection()
-                # Pastikan nama file dan worksheet tepat
-                sheet = client.open("Copy of Monitoring Evaluasi Pembelajaran").worksheet("Detail L1")
-                
-                # 6. PEMBERSIHAN AKHIR (List Conversion & NaN Handling)
-                # Mengubah dataframe menjadi list of lists
-                raw_lists = df_processed.values.tolist()
-                clean_lists = []
-                
-                for row in raw_lists:
-                    clean_row = []
-                    for val in row:
-                        # Jika nilainya NaN (bukan angka), ubah jadi string kosong
-                        if isinstance(val, float) and math.isnan(val):
-                            clean_row.append("")
-                        else:
-                            clean_row.append(val)
-                    clean_lists.append(clean_row)
+        if selected_cols:
+            df_filtered = df_raw[selected_cols].copy()
 
-                # 7. KIRIM DATA dengan USER_ENTERED (Anti-Tanda Petik)
-                sheet.append_rows(clean_lists, value_input_option='USER_ENTERED')
-                
-                st.success(f"✅ Berhasil! {len(clean_lists)} baris ditambahkan ke Database.")
-                st.balloons()
-                
+            # --- 3. FITUR FILTER TANGGAL (Skenario 3) ---
+            # Pastikan ada kolom tanggal untuk difilter
+            date_col = st.selectbox("Pilih kolom referensi tanggal untuk filter:", selected_cols)
+            
+            # Ubah ke datetime agar bisa difilter
+            df_filtered[date_col] = pd.to_datetime(df_filtered[date_col], errors='coerce')
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                start_date = st.date_input("Rentang Mulai:", df_filtered[date_col].min())
+            with col2:
+                end_date = st.date_input("Rentang Selesai:", df_filtered[date_col].max())
+
+            # Eksekusi Filter Tanggal
+            mask = (df_filtered[date_col].dt.date >= start_date) & (df_filtered[date_col].dt.date <= end_date)
+            df_final = df_filtered.loc[mask].copy()
+
+            # Preview
+            st.write(f"📊 Menampilkan {len(df_final)} baris hasil filter.")
+            st.dataframe(df_final)
+
+            # --- 4. TOMBOL KIRIM (Skenario 2) ---
+            if st.button(f"Kirim Data ke sheet '{target_sheet}'"):
+                with st.spinner('Proses pengiriman...'):
+                    client = init_connection()
+                    # Membuka sheet berdasarkan pilihan di sidebar
+                    sheet = client.open("Copy of Monitoring Evaluasi Pembelajaran").worksheet(target_sheet)
+                    
+                    # Konversi ke format yang aman bagi JSON (menghapus NaN)
+                    raw_lists = df_final.astype(str).values.tolist() # Gunakan str untuk keamanan multikolom
+                    
+                    sheet.append_rows(raw_lists, value_input_option='USER_ENTERED')
+                    
+                    st.success(f"✅ Berhasil! Data masuk ke '{target_sheet}'.")
+                    st.balloons()
+        else:
+            st.warning("Silakan pilih minimal satu kolom.")
+
     except Exception as e:
         st.error(f"Terjadi kesalahan: {e}")
