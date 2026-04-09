@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
+import math
 
 st.set_page_config(page_title="Data System", layout="wide")
 
@@ -12,18 +13,18 @@ def init_connection():
     return client
 
 def clean_and_map(df):
-    # 1. Pastikan kolom kunci ada dan bersih
+    # 1. Standarisasi Kolom Identitas
     df['Kode Judul'] = df['Kode Judul'].astype(str).str.strip()
     df['Angkatan'] = df['Angkatan'].astype(str).str.strip()
 
-    # 2. Penanganan Tanggal (Supaya tidak error JSON Timestamp)
+    # 2. Penanganan Tanggal
     df['Tgl Mulai'] = pd.to_datetime(df['Tgl Mulai'], errors='coerce').dt.strftime('%Y-%m-%d')
     df['Tgl Selesai'] = pd.to_datetime(df['Tgl Selesai'], errors='coerce').dt.strftime('%Y-%m-%d')
 
     # 3. Buat Kode Unik
     df['Kode Unik'] = df['Kode Judul'] + "." + df['Angkatan']
 
-    # 4. Definisikan urutan kolom (INI ADALAH cols_order YANG TADI ERROR)
+    # 4. Urutan kolom sesuai Google Sheet 'Detail L1'
     cols_order = [
         'Kode Judul', 'Judul Pembelajaran', 'Bidang', 'Tgl Mulai', 
         'Tgl Selesai', 'Angkatan', 'Kode Unik', 'UPDL Penyelenggara',
@@ -39,21 +40,17 @@ def clean_and_map(df):
         'Dig-Sas-5 of 5', 'Dig Rat'
     ]
 
-    # Reindex kolom
+    # Reindex kolom agar urutan konsisten
     df_final = df.reindex(columns=cols_order)
 
-    # 5. LOGIKA ANTI-TANDA PETIK: Ubah kolom skor kembali ke angka (Float)
-    # Kita mulai dari kolom 'P.Isi' sampai kolom terakhir
-    cols_numeric = cols_order[cols_order.index('P.Isi'):]
+    # 5. Konversi kolom skor menjadi angka (Numeric)
+    # Dimulai dari kolom 'P.Isi' sampai terakhir
+    idx_pisi = cols_order.index('P.Isi')
+    cols_numeric = cols_order[idx_pisi:]
     for col in cols_numeric:
-        # Ubah ke angka, jika gagal (kosong/nan) biarkan tetap NaN (bukan "")
         df_final[col] = pd.to_numeric(df_final[col], errors='coerce')
 
-    # 6. Pembersihan Akhir
-    # Jangan gunakan .astype(str) di sini!
-    # Kita hanya mengisi NaN dengan None agar API Google Sheets menerimanya sebagai sel kosong/angka
-    return df_final.where(pd.notnull(df_final), None)
-
+    return df_final
 
 st.title("🚀 UPDL Jakarta Data Integration")
 st.markdown("Upload file Excel dari PLN Pusat untuk memperbarui Database Google Sheets.")
@@ -71,12 +68,28 @@ if uploaded_file:
         if st.button("Kirim ke Google Sheets"):
             with st.spinner('Sedang mengirim data...'):
                 client = init_connection()
+                # Pastikan nama file dan worksheet tepat
                 sheet = client.open("Copy of Monitoring Evaluasi Pembelajaran").worksheet("Detail L1")
                 
-                data_to_push = df_processed.values.tolist()
-                sheet.append_rows(data_to_push)
+                # 6. PEMBERSIHAN AKHIR (List Conversion & NaN Handling)
+                # Mengubah dataframe menjadi list of lists
+                raw_lists = df_processed.values.tolist()
+                clean_lists = []
                 
-                st.success(f"✅ Berhasil! {len(data_to_push)} baris ditambahkan ke Database.")
+                for row in raw_lists:
+                    clean_row = []
+                    for val in row:
+                        # Jika nilainya NaN (bukan angka), ubah jadi string kosong
+                        if isinstance(val, float) and math.isnan(val):
+                            clean_row.append("")
+                        else:
+                            clean_row.append(val)
+                    clean_lists.append(clean_row)
+
+                # 7. KIRIM DATA dengan USER_ENTERED (Anti-Tanda Petik)
+                sheet.append_rows(clean_lists, value_input_option='USER_ENTERED')
+                
+                st.success(f"✅ Berhasil! {len(clean_lists)} baris ditambahkan ke Database.")
                 st.balloons()
                 
     except Exception as e:
