@@ -39,18 +39,20 @@ def clean_and_map(df):
         'Dig-Sas-5 of 5', 'Dig Rat'
     ]
 
-    # 5. Reindex dan bersihkan NaN (Agar aman bagi API Google Sheets) dan LOGIKA ANTI-TANDA PETIK: Ubah kolom skor kembali ke angka (Float)
-    # Gunakan cols_order yang sudah didefinisikan di atas
-    df_final = df.reindex(columns=cols_order).fillna("")
+    # Reindex kolom
+    df_final = df.reindex(columns=cols_order)
 
+    # 5. LOGIKA ANTI-TANDA PETIK: Ubah kolom skor kembali ke angka (Float)
     # Kita mulai dari kolom 'P.Isi' sampai kolom terakhir
     cols_numeric = cols_order[cols_order.index('P.Isi'):]
     for col in cols_numeric:
         # Ubah ke angka, jika gagal (kosong/nan) biarkan tetap NaN (bukan "")
         df_final[col] = pd.to_numeric(df_final[col], errors='coerce')
-    
-    # Pastikan semua data dikirim sebagai string
-    return df_final.astype(str)
+
+    # 6. Pembersihan Akhir
+    # Jangan gunakan .astype(str) di sini!
+    # Kita hanya mengisi NaN dengan None agar API Google Sheets menerimanya sebagai sel kosong/angka
+    return df_final.where(pd.notnull(df_final), None)
 
 
 st.title("🚀 UPDL Jakarta Data Integration")
